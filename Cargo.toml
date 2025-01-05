@@ -1,0 +1,44 @@
+[package]
+name = "aw-watcher-zed"
+version.workspace = true
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+zed_extension_api = "0.1.0"
+serde = { version = "1.0.217", features = ["derive"] }
+
+[workspace]
+members = ["activitywatch-ls"]
+
+[workspace.package]
+version = "0.0.1"
+
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+# Config for 'cargo dist'
+[workspace.metadata.dist]
+# The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.22.0"
+# CI backends to support
+ci = "github"
+# The archive format to use for non-windows builds (defaults .tar.xz)
+unix-archive = ".zip"
+# The archive format to use for windows builds (defaults .zip)
+windows-archive = ".zip"
+# The installers to generate for each app
+installers = []
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "x86_64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
+]
+
+[package.metadata.dist]
+dist = false

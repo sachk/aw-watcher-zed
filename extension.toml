@@ -1,0 +1,67 @@
+id = "aw-watcher"
+name = "aw-watcher"
+description = "ActitityWatch watcher support"
+version = "0.0.1"
+schema_version = 1
+authors = ["Sacha Korban sk@sachk.com"]
+repository = "https://github.com/sachk/aw-watcher-zed"
+
+[language_servers.activitywatch]
+name = "activitywatch"
+languages = [
+    "AsciiDoc",
+    "Astro",
+    "Bash",
+    "Biome",
+    "C",
+    "C++",
+    "Clojure",
+    "CSharp",
+    "CSS",
+    "CSV",
+    "D",
+    "Dart",
+    "Elixir",
+    "Elm",
+    "Erlang",
+    "Fish",
+    "FSharp",
+    "GDScript",
+    "Gleam",
+    "Go",
+    "GraphQL",
+    "Haskell",
+    "HEEX",
+    "HTML",
+    "Hy",
+    "Idris",
+    "Java",
+    "JavaScript",
+    "JSON",
+    "JSONC",
+    "Julia",
+    "Kotlin",
+    "Lua",
+    "Markdown",
+    "Nim",
+    "Nix",
+    "OCaml",
+    "PureScript",
+    "Python",
+    "Racket",
+    "Roc",
+    "Ruby",
+    "Rust",
+    "Scheme",
+    "SCSS",
+    "Shell Script",
+    "SQL",
+    "Swift",
+    "TOML",
+    "TSX",
+    "TypeScript",
+    "WIT",
+    "XML",
+    "YAML",
+    "Zig",
+]
