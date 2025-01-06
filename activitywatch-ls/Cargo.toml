@@ -6,7 +6,6 @@ repository = "https://github.com/sachk/aw-watcher-zed"
 
 
 [dependencies]
-arc-swap = "1.7.1"
 chrono = "0.4.38"
 clap = "4.5.16"
 serde = "1.0.210"

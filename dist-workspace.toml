@@ -20,6 +20,10 @@ targets = [
 unix-archive = ".zip"
 windows-archive = ".zip"
 
+[env]
+OPENSSL_STATIC = 1
+OPENSSL_LIB_DIR = "/usr/lib/x86_64-linux-gnu"
+OPENSSL_INCLUDE_DIR = "/usr/include/openssl"
 #[workspace.metadata.dist.dependencies.apt]
 #gcc-aarch64-linux-gnu = { version = '*', targets = [
 #  "aarch64-unknown-linux-gnu",
