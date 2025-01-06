@@ -7,14 +7,14 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-zed_extension_api = "0.1.0"
+zed_extension_api = "0.2.0"
 serde = { version = "1.0.217", features = ["derive"] }
 
 [workspace]
 members = ["activitywatch-ls"]
 
 [workspace.package]
-version = "0.0.2"
+version = "0.0.3"
 
 [profile.dist]
 inherits = "release"
