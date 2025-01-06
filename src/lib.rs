@@ -26,7 +26,7 @@ impl ActivityWatchExtension {
 
             let os = match platform {
                 zed::Os::Mac => "apple-darwin",
-                zed::Os::Linux => "unknown-linux-gnu",
+                zed::Os::Linux => "unknown-linux-musl",
                 zed::Os::Windows => "pc-windows-msvc",
             };
 
@@ -149,7 +149,7 @@ impl zed::Extension for ActivityWatchExtension {
                     }
                 }
                 Err(e) => {
-                    println!("Error pasrsing settings (make sure port is a number and host is a string): {e:#?}");
+                    return Err(format!("Error pasrsing settings (make sure port is a number and host is a string): {e:#?}"));
                 }
             };
         };
