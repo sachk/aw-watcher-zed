@@ -26,7 +26,7 @@ impl ActivityWatchExtension {
 
             let os = match platform {
                 zed::Os::Mac => "apple-darwin",
-                zed::Os::Linux => "unknown-linux-musl",
+                zed::Os::Linux => "unknown-linux-gcc",
                 zed::Os::Windows => "pc-windows-msvc",
             };
 
