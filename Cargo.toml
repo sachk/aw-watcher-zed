@@ -14,7 +14,7 @@ serde = { version = "1.0.217", features = ["derive"] }
 members = ["activitywatch-ls"]
 
 [workspace.package]
-version = "0.0.1"
+version = "0.0.2"
 
 [profile.dist]
 inherits = "release"
