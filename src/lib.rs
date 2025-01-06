@@ -132,14 +132,13 @@ impl zed::Extension for ActivityWatchExtension {
         language_server_id: &LanguageServerId,
         worktree: &Worktree,
     ) -> Result<Command> {
-        // TODO: clean up below
         let lsp_settings =
             LspSettings::for_worktree(language_server_id.to_string().as_str(), worktree)?;
 
-        let args = match lsp_settings.settings {
-            Some(s) => match serde_json::from_value::<Configuration>(s) {
+        let mut args = Vec::new();
+        if let Some(settings) = lsp_settings.settings {
+            match serde_json::from_value::<Configuration>(settings) {
                 Ok(config) => {
-                    let mut args = Vec::new();
                     if let Some(host) = config.host {
                         args.push("--host".to_string());
                         args.push(host);
@@ -148,14 +147,11 @@ impl zed::Extension for ActivityWatchExtension {
                         args.push("--port".to_string());
                         args.push(port.to_string());
                     }
-                    args
                 }
                 Err(e) => {
-                    println!("error! {e:#?}");
-                    Vec::new()
+                    println!("Error pasrsing settings (make sure port is a number and host is a string): {e:#?}");
                 }
-            },
-            None => Vec::new(),
+            };
         };
 
         let ls_binary_path = self.language_server_binary_path(language_server_id, worktree)?;

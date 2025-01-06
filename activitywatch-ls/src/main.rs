@@ -25,7 +25,6 @@ struct ActivityWatchLangaugeServer {
     client: Client,
     current_file: Mutex<CurrentFile>,
     aw_client: AwClient,
-    // TODO: consider moving?
     bucket_id: String,
 }
 
@@ -70,13 +69,14 @@ impl ActivityWatchLangaugeServer {
         let aw_event = aw_client_rust::Event::new(now.to_utc(), TimeDelta::zero(), data);
 
         const PULSETIME: f64 = (INTERVAL.num_seconds() - 10) as f64;
-        self.aw_client
+        if let Err(e) = self
+            .aw_client
             // TODO: double check interval stuff
             .heartbeat(&self.bucket_id, &aw_event, PULSETIME)
             .await
-            .unwrap();
-
-        //let settings = self.settings.load();
+        {
+            println!("Recieved error trying to send a heartbeat to the server: {e:?}");
+        }
 
         current_file.uri = event.uri;
         current_file.timestamp = now;
@@ -117,7 +117,7 @@ impl LanguageServer for ActivityWatchLangaugeServer {
         let event = Event {
             uri: params.text_document.uri[url::Position::BeforeUsername..].to_string(),
             is_write: false,
-            language: Some(params.text_document.language_id.clone()),
+            language: Some(params.text_document.language_id),
         };
 
         self.send(event).await;
@@ -170,22 +170,27 @@ async fn main() {
         )
         .get_matches();
 
-    // TODO: clean up and handle errors
     // Note that AwClient does not support https
-    //
-    // this kinda sucks doesn't it??? is there a nicer way to do this or is it better to just not use default_value
+    // TODO: this sucks and i hate the alternatives too lol
     let host: &String = matches.get_one("host").unwrap();
     let port: &u16 = matches.get_one("port").unwrap();
-    println!("got host {host} and port {port}");
 
-    let aw_client = AwClient::new(host, *port, "aw-watcher-zed").unwrap();
+    let aw_client = match AwClient::new(host, *port, "aw-watcher-zed") {
+        Ok(c) => c,
+        Err(e) => {
+            println!("Could not connect to ActivityWatch Server, recieved error {e:?}");
+            return;
+        }
+    };
 
     let bucket_id = format!("test-client-bucket_{}", aw_client.hostname);
-    // TODO: check if we should be checking for a preexisting bucket?
-    aw_client
+    if let Err(e) = aw_client
         .create_bucket_simple(&bucket_id, "app.editor.activity")
         .await
-        .unwrap();
+    {
+        println!("Could not create ActivityWatch bucket, recieved error {e:?}");
+        return;
+    };
 
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
