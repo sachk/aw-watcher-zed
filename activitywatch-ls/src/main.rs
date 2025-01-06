@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use aw_client_rust::AwClient;
 use chrono::{DateTime, Local, TimeDelta};
 use clap::{value_parser, Arg, Command};
-use serde_json::{Map, Value};
+use serde_json::Value;
 use tokio::sync::Mutex;
 use tower_lsp::{jsonrpc, lsp_types::*, Client, LanguageServer, LspService, Server};
 
@@ -18,7 +18,6 @@ struct Event {
 struct CurrentFile {
     uri: String,
     timestamp: DateTime<Local>,
-    // TODO: seems we're gonna have to track each open files language bleh. Doublecheck wakatime impl
 }
 
 struct ActivityWatchLangaugeServer {
@@ -26,13 +25,14 @@ struct ActivityWatchLangaugeServer {
     current_file: Mutex<CurrentFile>,
     aw_client: AwClient,
     bucket_id: String,
+    file_languages: Mutex<HashMap<String, String>>,
 }
 
 impl ActivityWatchLangaugeServer {
     async fn send(&self, event: Event) {
         // if isWrite is false, and file has not changed since last heartbeat,
-        // and it has been fewer than 2 minutes since last heartbeat do nothing
-        const INTERVAL: TimeDelta = TimeDelta::minutes(2);
+        // and it has been less than 1 second since the last heartbeat do nothing
+        const INTERVAL: TimeDelta = TimeDelta::seconds(1);
 
         let mut current_file = self.current_file.lock().await;
         let now = Local::now();
@@ -44,11 +44,11 @@ impl ActivityWatchLangaugeServer {
             return;
         }
 
-        let mut data = Map::new();
+        let mut data = serde_json::Map::new();
         data.insert("file".to_string(), Value::String(event.uri.clone()));
         match self.client.workspace_folders().await {
-            Ok(o) => {
-                if let Some(folders) = o {
+            Ok(folders) => {
+                if let Some(folders) = folders {
                     // ActivityWatch's API only lets us report the first folder. I think Zed only ever reports one anyway
                     if let Some(folder) = folders.first() {
                         data.insert(
@@ -60,18 +60,22 @@ impl ActivityWatchLangaugeServer {
             }
             Err(_) => todo!(),
         };
-        if let Some(language) = event.language {
+        let language = match event.language {
+            Some(l) => Some(l),
+            None => self.file_languages.lock().await.get(&event.uri).cloned(),
+        };
+
+        if let Some(language) = language {
             data.insert("language".to_string(), Value::String(language));
         }
 
-        // Duration 0 bc heartbeats?? https://docs.activitywatch.net/en/latest/buckets-and-events.html#id7
+        // Duration 0 because heartbeats https://docs.activitywatch.net/en/latest/buckets-and-events.html#id7
         // https://github.com/ActivityWatch/aw-watcher-vscode/blob/36093d4ac133f04363f144bdfefa4523f8e8f25f/src/extension.ts#L139
         let aw_event = aw_client_rust::Event::new(now.to_utc(), TimeDelta::zero(), data);
 
-        const PULSETIME: f64 = (INTERVAL.num_seconds() - 10) as f64;
+        const PULSETIME: f64 = 60_f64;
         if let Err(e) = self
             .aw_client
-            // TODO: double check interval stuff
             .heartbeat(&self.bucket_id, &aw_event, PULSETIME)
             .await
         {
@@ -117,8 +121,13 @@ impl LanguageServer for ActivityWatchLangaugeServer {
         let event = Event {
             uri: params.text_document.uri[url::Position::BeforeUsername..].to_string(),
             is_write: false,
-            language: Some(params.text_document.language_id),
+            language: Some(params.text_document.language_id.clone()),
         };
+
+        self.file_languages
+            .lock()
+            .await
+            .insert(event.uri.clone(), params.text_document.language_id);
 
         self.send(event).await;
     }
@@ -204,6 +213,7 @@ async fn main() {
             }),
             aw_client,
             bucket_id,
+            file_languages: Mutex::new(HashMap::new()),
         })
     });
 
