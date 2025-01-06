@@ -50,7 +50,8 @@ impl ActivityWatchLangaugeServer {
         match self.client.workspace_folders().await {
             Ok(o) => {
                 if let Some(folders) = o {
-                    if let Some(folder) = folders.get(0) {
+                    // ActivityWatch's API only lets us report the first folder. I think Zed only ever reports one anyway
+                    if let Some(folder) = folders.first() {
                         data.insert(
                             "project".to_string(),
                             Value::String(String::from(folder.uri.clone())),
