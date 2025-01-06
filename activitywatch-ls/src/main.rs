@@ -129,6 +129,7 @@ impl LanguageServer for ActivityWatchLangaugeServer {
             .await
             .insert(event.uri.clone(), params.text_document.language_id);
 
+        // TODO: consider not doing this at all?
         self.send(event).await;
     }
 
