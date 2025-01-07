@@ -16,9 +16,13 @@ members = ["activitywatch-ls"]
 [workspace.package]
 version = "0.0.4"
 
+[profile.release]
+lto = "thin"
+strip = true    # Automatically strip symbols from the binary.
+opt-level = "s" # Optimize for size.
+
 [profile.dist]
 inherits = "release"
-lto = "thin"
 
 [package.metadata.dist]
 dist = false
