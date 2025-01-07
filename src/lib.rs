@@ -70,6 +70,7 @@ impl ActivityWatchExtension {
             .map_err(|err| format!("failed to download file: {err}"))?;
 
             // Delete old versions
+            // TODO: investigate why this seems to not be working locally
             let entries = fs::read_dir(".")
                 .map_err(|err| format!("failed to list working directory {err}"))?;
             for entry in entries {
