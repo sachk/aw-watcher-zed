@@ -175,8 +175,7 @@ async fn main() {
                 .long("port")
                 .help("The ActivityWatch server port to connect to on the host")
                 .required(false)
-                // TODO: change to 5600
-                .default_value("5666"),
+                .default_value("5600"),
         )
         .get_matches();
 
