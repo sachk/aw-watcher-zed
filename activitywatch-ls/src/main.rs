@@ -58,7 +58,9 @@ impl ActivityWatchLangaugeServer {
                     }
                 };
             }
-            Err(_) => todo!(),
+            Err(e) => {
+                println!("Error reported when fetching workspace folders: {e:#?}")
+            }
         };
         let language = match event.language {
             Some(l) => Some(l),
@@ -129,8 +131,8 @@ impl LanguageServer for ActivityWatchLangaugeServer {
             .await
             .insert(event.uri.clone(), params.text_document.language_id);
 
-        // TODO: consider not doing this at all?
-        self.send(event).await;
+        // TODO: keep tabs on whether or not to do this
+        // self.send(event).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
