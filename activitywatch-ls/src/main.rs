@@ -59,7 +59,7 @@ impl ActivityWatchLangaugeServer {
                 };
             }
             Err(e) => {
-                println!("Error reported when fetching workspace folders: {e:#?}")
+                eprintln!("Error reported when fetching workspace folders: {e:#?}")
             }
         };
         let language = match event.language {
@@ -81,7 +81,7 @@ impl ActivityWatchLangaugeServer {
             .heartbeat(&self.bucket_id, &aw_event, PULSETIME)
             .await
         {
-            println!("Recieved error trying to send a heartbeat to the server: {e:?}");
+            eprintln!("Recieved error trying to send a heartbeat to the server: {e:?}");
         }
 
         current_file.uri = event.uri;
@@ -119,6 +119,10 @@ impl LanguageServer for ActivityWatchLangaugeServer {
         Ok(())
     }
 
+    // Note that zed (and probably other editors) do this not when a file is in the foreground
+    // but as soon as it is opened, which makes sense but is annoying for us.
+    // Reporting the time between when a file is foregrounded and a change is made would require
+    // us to look at a whole bunch of other events or something bleh.
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let event = Event {
             uri: params.text_document.uri[url::Position::BeforeUsername..].to_string(),
@@ -126,6 +130,8 @@ impl LanguageServer for ActivityWatchLangaugeServer {
             language: Some(params.text_document.language_id.clone()),
         };
 
+        // This is a minor memory leak and ideally we'd look for close events
+        // to remove entries
         self.file_languages
             .lock()
             .await
@@ -186,20 +192,21 @@ async fn main() {
     let host: &String = matches.get_one("host").unwrap();
     let port: &u16 = matches.get_one("port").unwrap();
 
-    let aw_client = match AwClient::new(host, *port, "aw-watcher-zed") {
+    const CLIENT_NAME: &str = "aw-watcher-zed";
+    let aw_client = match AwClient::new(host, *port, CLIENT_NAME) {
         Ok(c) => c,
         Err(e) => {
-            println!("Could not connect to ActivityWatch Server, recieved error {e:?}");
+            eprintln!("Could not connect to ActivityWatch Server, recieved error {e:?}");
             return;
         }
     };
 
-    let bucket_id = format!("test-client-bucket_{}", aw_client.hostname);
+    let bucket_id = format!("{CLIENT_NAME}-bucket_{}", aw_client.hostname);
     if let Err(e) = aw_client
         .create_bucket_simple(&bucket_id, "app.editor.activity")
         .await
     {
-        println!("Could not create ActivityWatch bucket, recieved error {e:?}");
+        eprintln!("Could not create ActivityWatch bucket, recieved error {e:?}");
         return;
     };
 

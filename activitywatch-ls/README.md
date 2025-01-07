@@ -1,3 +1,3 @@
-# wakatime-ls
+# activitywatch-ls
 
-A language server for sending [ActivityWatch](https://github.com/wakatime/zed-wakatime/) heartbeats. Intended to be used for editors with no other way of supporting a watcher.
+A language server for sending [ActivityWatch](https://activitywatch.net/) heartbeats. Intended to be used for editors with no other way of supporting a watcher.
