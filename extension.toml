@@ -1,7 +1,7 @@
-id = "aw-watcher"
-name = "aw-watcher"
-description = "ActitityWatch watcher support"
-version = "0.1.0"
+id = "activitywatch"
+name = "activitywatch"
+description = "ActivityWatch watcher support"
+version = "0.1.1"
 schema_version = 1
 authors = ["Sacha Korban sk@sachk.com"]
 repository = "https://github.com/sachk/aw-watcher-zed"
