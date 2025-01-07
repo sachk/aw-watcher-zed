@@ -1,4 +1,4 @@
-# zed-wakatime
+# aw-watcher-zed
 
 This extension allows [ActivityWatch](https://activitywatch.net/), the free and open-source time tracker, to track what you are doing when using the [Zed](https://zed.dev/) editor.
 
