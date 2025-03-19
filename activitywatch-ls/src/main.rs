@@ -158,7 +158,7 @@ impl LanguageServer for ActivityWatchLanguageServer {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     let matches = Command::new("activitywatch_ls")
         .version(env!("CARGO_PKG_VERSION"))
