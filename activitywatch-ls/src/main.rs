@@ -20,7 +20,7 @@ struct CurrentFile {
     timestamp: DateTime<Local>,
 }
 
-struct ActivityWatchLangaugeServer {
+struct ActivityWatchLanguageServer {
     client: Client,
     current_file: Mutex<CurrentFile>,
     aw_client: AwClient,
@@ -28,7 +28,7 @@ struct ActivityWatchLangaugeServer {
     file_languages: Mutex<HashMap<String, String>>,
 }
 
-impl ActivityWatchLangaugeServer {
+impl ActivityWatchLanguageServer {
     async fn send(&self, event: Event) {
         // if isWrite is false, and file has not changed since last heartbeat,
         // and it has been less than 1 second since the last heartbeat do nothing
@@ -46,22 +46,6 @@ impl ActivityWatchLangaugeServer {
 
         let mut data = serde_json::Map::new();
         data.insert("file".to_string(), Value::String(event.uri.clone()));
-        match self.client.workspace_folders().await {
-            Ok(folders) => {
-                if let Some(folders) = folders {
-                    // ActivityWatch's API only lets us report the first folder. I think Zed only ever reports one anyway
-                    if let Some(folder) = folders.first() {
-                        data.insert(
-                            "project".to_string(),
-                            Value::String(String::from(folder.uri.clone())),
-                        );
-                    }
-                };
-            }
-            Err(e) => {
-                eprintln!("Error reported when fetching workspace folders: {e:#?}")
-            }
-        };
         let language = match event.language {
             Some(l) => Some(l),
             None => self.file_languages.lock().await.get(&event.uri).cloned(),
@@ -81,7 +65,7 @@ impl ActivityWatchLangaugeServer {
             .heartbeat(&self.bucket_id, &aw_event, PULSETIME)
             .await
         {
-            eprintln!("Recieved error trying to send a heartbeat to the server: {e:?}");
+            eprintln!("Received error trying to send a heartbeat to the server: {e:?}");
         }
 
         current_file.uri = event.uri;
@@ -90,7 +74,7 @@ impl ActivityWatchLangaugeServer {
 }
 
 #[tower_lsp::async_trait]
-impl LanguageServer for ActivityWatchLangaugeServer {
+impl LanguageServer for ActivityWatchLanguageServer {
     async fn initialize(&self, _: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
@@ -206,7 +190,7 @@ async fn main() {
         .create_bucket_simple(&bucket_id, "app.editor.activity")
         .await
     {
-        eprintln!("Could not create ActivityWatch bucket, recieved error {e:?}");
+        eprintln!("Could not create ActivityWatch bucket, received error {e:?}");
         return;
     };
 
@@ -214,7 +198,7 @@ async fn main() {
     let stdout = tokio::io::stdout();
 
     let (service, socket) = LspService::new(|client| {
-        Arc::new(ActivityWatchLangaugeServer {
+        Arc::new(ActivityWatchLanguageServer {
             client,
             current_file: Mutex::new(CurrentFile {
                 uri: String::new(),
