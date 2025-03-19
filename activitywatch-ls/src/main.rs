@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use arc_swap::ArcSwap;
 use aw_client_rust::AwClient;
 use chrono::{DateTime, Local, TimeDelta};
 use clap::{value_parser, Arg, Command};
@@ -26,6 +27,7 @@ struct ActivityWatchLanguageServer {
     aw_client: AwClient,
     bucket_id: String,
     file_languages: Mutex<HashMap<String, String>>,
+    project: ArcSwap<Option<String>>,
 }
 
 impl ActivityWatchLanguageServer {
@@ -51,6 +53,10 @@ impl ActivityWatchLanguageServer {
             None => self.file_languages.lock().await.get(&event.uri).cloned(),
         };
 
+        if let Some(project) = (**self.project.load()).as_ref() {
+            data.insert("project".to_string(), Value::String(project.clone()));
+        }
+
         if let Some(language) = language {
             data.insert("language".to_string(), Value::String(language));
         }
@@ -75,7 +81,13 @@ impl ActivityWatchLanguageServer {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for ActivityWatchLanguageServer {
-    async fn initialize(&self, _: InitializeParams) -> jsonrpc::Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
+        if let Some(folders) = params.workspace_folders {
+            if let Some(folder) = folders.get(0) {
+                let path = folder.uri.path().to_string();
+                self.project.swap(Arc::new(Some(path)));
+            }
+        }
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
                 name: env!("CARGO_PKG_NAME").to_string(),
@@ -180,7 +192,7 @@ async fn main() {
     let aw_client = match AwClient::new(host, *port, CLIENT_NAME) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("Could not connect to ActivityWatch Server, recieved error {e:?}");
+            eprintln!("Could not connect to ActivityWatch Server, received error {e:?}");
             return;
         }
     };
@@ -207,6 +219,7 @@ async fn main() {
             aw_client,
             bucket_id,
             file_languages: Mutex::new(HashMap::new()),
+            project: ArcSwap::from_pointee(None),
         })
     });
 
