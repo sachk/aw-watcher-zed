@@ -10,8 +10,9 @@ chrono = "0.4"
 clap = "4.5"
 serde = "1.0"
 serde_json = "1.0"
-tokio = { version = "1.44", features = ["rt", "io-std", "macros" ] }
-tower-lsp = "0.20"
 url = "2.5"
 aw-client-rust = { git = "https://github.com/sachk/aw-server-rust", branch = "master" }
 arc-swap = "1.7"
+futures = "0.3"
+lsp-server = "0.7"
+lsp-types = "0.97"

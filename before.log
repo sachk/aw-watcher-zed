@@ -1,0 +1,5 @@
+    PID TTY      STAT   TIME  MAJFL   TRS   DRS   RSS %MEM COMMAND
+  27860 ?        Sl     0:00      0  2256 207171 4780  0.0 /home/sachk/.local/share/zed/extensions/work/activitywatch/activitywatch-ls-v0.1.2/activitywatch-ls
+  27861 ?        Sl     0:00      0  2256 139583 5016  0.0 /home/sachk/.local/share/zed/extensions/work/activitywatch/activitywatch-ls-v0.1.2/activitywatch-ls
+  27862 ?        Sl     0:00      0  2256 139579 4580  0.0 /home/sachk/.local/share/zed/extensions/work/activitywatch/activitywatch-ls-v0.1.2/activitywatch-ls
+  27863 ?        Sl     0:00      0  2256 207171 5016  0.0 /home/sachk/.local/share/zed/extensions/work/activitywatch/activitywatch-ls-v0.1.2/activitywatch-ls

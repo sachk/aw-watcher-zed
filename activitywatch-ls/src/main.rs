@@ -1,12 +1,19 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Mutex;
+use std::{collections::HashMap, error::Error, sync::Arc};
 
 use arc_swap::ArcSwap;
 use aw_client_rust::AwClient;
 use chrono::{DateTime, Local, TimeDelta};
 use clap::{value_parser, Arg, Command};
+use lsp_types::notification::{DidChangeTextDocument, DidOpenTextDocument};
 use serde_json::Value;
-use tokio::sync::Mutex;
-use tower_lsp::{jsonrpc, lsp_types::*, Client, LanguageServer, LspService, Server};
+
+use lsp_types::{
+    request::GotoDefinition, GotoDefinitionResponse, InitializeParams, ServerCapabilities,
+};
+use lsp_types::{OneOf, TextDocumentSyncCapability, TextDocumentSyncKind};
+
+use lsp_server::{Connection, ExtractError, Message, Notification, Request, RequestId, Response};
 
 #[derive(Default, Debug)]
 struct Event {
@@ -22,7 +29,7 @@ struct CurrentFile {
 }
 
 struct ActivityWatchLanguageServer {
-    client: Client,
+    client: Connection,
     current_file: Mutex<CurrentFile>,
     aw_client: AwClient,
     bucket_id: String,
@@ -36,7 +43,7 @@ impl ActivityWatchLanguageServer {
         // and it has been less than 1 second since the last heartbeat do nothing
         const INTERVAL: TimeDelta = TimeDelta::seconds(1);
 
-        let mut current_file = self.current_file.lock().await;
+        let mut current_file = self.current_file.lock().unwrap();
         let now = Local::now();
 
         if event.uri == current_file.uri
@@ -50,7 +57,7 @@ impl ActivityWatchLanguageServer {
         data.insert("file".to_string(), Value::String(event.uri.clone()));
         let language = match event.language {
             Some(l) => Some(l),
-            None => self.file_languages.lock().await.get(&event.uri).cloned(),
+            None => self.file_languages.lock().unwrap().get(&event.uri).cloned(),
         };
 
         if let Some(project) = (**self.project.load()).as_ref() {
@@ -69,7 +76,6 @@ impl ActivityWatchLanguageServer {
         if let Err(e) = self
             .aw_client
             .heartbeat(&self.bucket_id, &aw_event, PULSETIME)
-            .await
         {
             eprintln!("Received error trying to send a heartbeat to the server: {e:?}");
         }
@@ -79,87 +85,72 @@ impl ActivityWatchLanguageServer {
     }
 }
 
-#[tower_lsp::async_trait]
-impl LanguageServer for ActivityWatchLanguageServer {
-    async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
-        if let Some(folders) = params.workspace_folders {
-            if let Some(folder) = folders.get(0) {
-                let path = folder.uri.path().to_string();
-                self.project.swap(Arc::new(Some(path)));
-            }
-        }
-        Ok(InitializeResult {
-            server_info: Some(ServerInfo {
-                name: env!("CARGO_PKG_NAME").to_string(),
-                version: Some(env!("CARGO_PKG_VERSION").to_string()),
-            }),
-            capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncCapability::Kind(
-                    TextDocumentSyncKind::INCREMENTAL,
-                )),
-                ..Default::default()
-            },
-        })
-    }
+//impl LanguageServer for ActivityWatchLanguageServer {
+//    async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
+//        if let Some(folders) = params.workspace_folders {
+//            if let Some(folder) = folders.get(0) {
+//                let path = folder.uri.path().to_string();
+//                self.project.swap(Arc::new(Some(path)));
+//            }
+//        }
+//        Ok(InitializeResult {
+//            server_info: Some(ServerInfo {
+//                name: env!("CARGO_PKG_NAME").to_string(),
+//                version: Some(env!("CARGO_PKG_VERSION").to_string()),
+//            }),
+//            capabilities: ServerCapabilities {
+//                text_document_sync: Some(TextDocumentSyncCapability::Kind(
+//                    TextDocumentSyncKind::INCREMENTAL,
+//                )),
+//                ..Default::default()
+//            },
+//        })
+//    }
+//
+//    // Note that zed (and probably other editors) do this not when a file is in the foreground
+//    // but as soon as it is opened, which makes sense but is annoying for us.
+//    // Reporting the time between when a file is foregrounded and a change is made would require
+//    // us to look at a whole bunch of other events or something bleh.
+//    async fn did_open(&self, params: DidOpenTextDocumentParams) {
+//        let event = Event {
+//            uri: params.text_document.uri[url::Position::BeforeUsername..].to_string(),
+//            is_write: false,
+//            language: Some(params.text_document.language_id.clone()),
+//        };
+//
+//        // This is a minor memory leak and ideally we'd look for close events
+//        // to remove entries
+//        self.file_languages
+//            .lock()
+//            .await
+//            .insert(event.uri.clone(), params.text_document.language_id);
+//
+//        // TODO: keep tabs on whether or not to do this
+//        // self.send(event).await;
+//    }
+//
+//    async fn did_change(&self, params: DidChangeTextDocumentParams) {
+//        let event = Event {
+//            uri: params.text_document.uri[url::Position::BeforeUsername..].to_string(),
+//            is_write: false,
+//            language: None,
+//        };
+//
+//        self.send(event).await;
+//    }
+//
+//    async fn did_save(&self, params: DidSaveTextDocumentParams) {
+//        let event = Event {
+//            uri: params.text_document.uri[url::Position::BeforeUsername..].to_string(),
+//            is_write: true,
+//            language: None,
+//        };
+//
+//        self.send(event).await;
+//    }
+//}
 
-    async fn initialized(&self, _params: InitializedParams) {
-        self.client
-            .log_message(
-                MessageType::INFO,
-                "ActivityWatch language server initialized",
-            )
-            .await;
-    }
-
-    async fn shutdown(&self) -> jsonrpc::Result<()> {
-        Ok(())
-    }
-
-    // Note that zed (and probably other editors) do this not when a file is in the foreground
-    // but as soon as it is opened, which makes sense but is annoying for us.
-    // Reporting the time between when a file is foregrounded and a change is made would require
-    // us to look at a whole bunch of other events or something bleh.
-    async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        let event = Event {
-            uri: params.text_document.uri[url::Position::BeforeUsername..].to_string(),
-            is_write: false,
-            language: Some(params.text_document.language_id.clone()),
-        };
-
-        // This is a minor memory leak and ideally we'd look for close events
-        // to remove entries
-        self.file_languages
-            .lock()
-            .await
-            .insert(event.uri.clone(), params.text_document.language_id);
-
-        // TODO: keep tabs on whether or not to do this
-        // self.send(event).await;
-    }
-
-    async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        let event = Event {
-            uri: params.text_document.uri[url::Position::BeforeUsername..].to_string(),
-            is_write: false,
-            language: None,
-        };
-
-        self.send(event).await;
-    }
-
-    async fn did_save(&self, params: DidSaveTextDocumentParams) {
-        let event = Event {
-            uri: params.text_document.uri[url::Position::BeforeUsername..].to_string(),
-            is_write: true,
-            language: None,
-        };
-
-        self.send(event).await;
-    }
-}
-
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
+fn main() {
     let matches = Command::new("activitywatch_ls")
         .version(env!("CARGO_PKG_VERSION"))
         .author("Sacha Korban <sk@sachk.com>")
@@ -198,30 +189,99 @@ async fn main() {
     };
 
     let bucket_id = format!("{CLIENT_NAME}-bucket_{}", aw_client.hostname);
-    if let Err(e) = aw_client
-        .create_bucket_simple(&bucket_id, "app.editor.activity")
-        .await
-    {
+    if let Err(e) = aw_client.create_bucket_simple(&bucket_id, "app.editor.activity") {
         eprintln!("Could not create ActivityWatch bucket, received error {e:?}");
         return;
     };
 
-    let stdin = tokio::io::stdin();
-    let stdout = tokio::io::stdout();
+    // Note that  we must have our logging only write out to stderr.
+    eprintln!("starting generic LSP server");
 
-    let (service, socket) = LspService::new(|client| {
-        Arc::new(ActivityWatchLanguageServer {
-            client,
-            current_file: Mutex::new(CurrentFile {
-                uri: String::new(),
-                timestamp: Local::now(),
-            }),
-            aw_client,
-            bucket_id,
-            file_languages: Mutex::new(HashMap::new()),
-            project: ArcSwap::from_pointee(None),
-        })
-    });
+    // Create the transport. Includes the stdio (stdin and stdout) versions but this could
+    // also be implemented to use sockets or HTTP.
+    let (connection, io_threads) = Connection::stdio();
 
-    Server::new(stdin, stdout, socket).serve(service).await;
+    // Run the server and wait for the two threads to end (typically by trigger LSP Exit event).
+    let server_capabilities = serde_json::to_value(&ServerCapabilities {
+        text_document_sync: Some(TextDocumentSyncCapability::Kind(
+            TextDocumentSyncKind::INCREMENTAL,
+        )),
+        ..Default::default()
+    })
+    .unwrap();
+
+    //if let Some(folders) = params.workspace_folders {
+    //    if let Some(folder) = folders.get(0) {
+    //        let path = folder.uri.path().to_string();
+    //        self.project.swap(Arc::new(Some(path)));
+    //    }
+    //}
+    //.unwrap();
+    let initialization_params = match connection.initialize(server_capabilities) {
+        Ok(it) => it,
+        Err(e) => {
+            if e.channel_is_disconnected() {
+                io_threads.join().unwrap();
+            }
+            return; //TODO
+        }
+    };
+    main_loop(connection, initialization_params).unwrap();
+    io_threads.join().unwrap();
+
+    // Shut down gracefully.
+    eprintln!("shutting down server");
+}
+
+fn main_loop(
+    connection: Connection,
+    params: serde_json::Value,
+) -> Result<(), Box<dyn Error + Sync + Send>> {
+    let _params: InitializeParams = serde_json::from_value(params).unwrap();
+    eprintln!("starting example main loop");
+    for msg in &connection.receiver {
+        eprintln!("got msg: {msg:?}");
+        match msg {
+            Message::Request(req) => {
+                if connection.handle_shutdown(&req)? {
+                    return Ok(());
+                }
+                eprintln!("got request: {req:?}");
+                // ...
+            }
+            Message::Response(resp) => {
+                eprintln!("got response: {resp:?}");
+            }
+            Message::Notification(not) => {
+                eprintln!("got notification: {not:?}");
+                //match cast_notification::<DidOpenTextDocument>(not) {
+                //    Ok((id, params)) => {
+                //        eprintln!("got DidOpenTextDocument notification #{id}: {params:?}");
+                //        continue;
+                //    }
+                //    Err(err @ ExtractError::JsonError { .. }) => panic!("{err:?}"),
+                //    Err(ExtractError::MethodMismatch(req)) => req,
+                //};
+            }
+        }
+    }
+    Ok(())
+}
+
+fn cast<R>(req: Request) -> Result<(RequestId, R::Params), ExtractError<Request>>
+where
+    R: lsp_types::request::Request,
+    R::Params: serde::de::DeserializeOwned,
+{
+    req.extract(R::METHOD)
+}
+
+fn cast_notification<R>(
+    req: Notification,
+) -> Result<(RequestId, R::Params), ExtractError<Notification>>
+where
+    R: lsp_types::notification::Notification,
+    R::Params: serde::de::DeserializeOwned,
+{
+    req.extract(R::METHOD)
 }
