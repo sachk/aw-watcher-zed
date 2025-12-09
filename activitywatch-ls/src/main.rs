@@ -4,9 +4,16 @@ use arc_swap::ArcSwap;
 use aw_client_rust::AwClient;
 use chrono::{DateTime, Local, TimeDelta};
 use clap::{value_parser, Arg, Command};
+use percent_encoding::percent_decode_str;
 use serde_json::Value;
 use tokio::sync::Mutex;
 use tower_lsp::{jsonrpc, lsp_types::*, Client, LanguageServer, LspService, Server};
+
+fn decode_uri_path(uri: &Url) -> String {
+    percent_decode_str(uri.path())
+        .decode_utf8_lossy()
+        .to_string()
+}
 
 #[derive(Default, Debug)]
 struct Event {
@@ -120,8 +127,9 @@ impl LanguageServer for ActivityWatchLanguageServer {
     // Reporting the time between when a file is foregrounded and a change is made would require
     // us to look at a whole bunch of other events or something bleh.
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
+        let decoded_path = decode_uri_path(&params.text_document.uri);
         let event = Event {
-            uri: params.text_document.uri[url::Position::BeforeUsername..].to_string(),
+            uri: decoded_path.clone(),
             is_write: false,
             language: Some(params.text_document.language_id.clone()),
         };
@@ -131,7 +139,7 @@ impl LanguageServer for ActivityWatchLanguageServer {
         self.file_languages
             .lock()
             .await
-            .insert(event.uri.clone(), params.text_document.language_id);
+            .insert(decoded_path, params.text_document.language_id);
 
         // TODO: keep tabs on whether or not to do this
         // self.send(event).await;
@@ -139,7 +147,7 @@ impl LanguageServer for ActivityWatchLanguageServer {
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let event = Event {
-            uri: params.text_document.uri[url::Position::BeforeUsername..].to_string(),
+            uri: decode_uri_path(&params.text_document.uri),
             is_write: false,
             language: None,
         };
@@ -149,7 +157,7 @@ impl LanguageServer for ActivityWatchLanguageServer {
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         let event = Event {
-            uri: params.text_document.uri[url::Position::BeforeUsername..].to_string(),
+            uri: decode_uri_path(&params.text_document.uri),
             is_write: true,
             language: None,
         };
